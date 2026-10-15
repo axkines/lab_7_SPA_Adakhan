@@ -3,24 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="SPA управления мероприятиями — лабораторная работа №7, вариант 20">
-  <title>Gather — мероприятия</title>
+  <meta name="description" content="SPA-планировщик — лабораторная работа №7, вариант 14">
+  <title>Daymark — планировщик</title>
   <link rel="stylesheet" href="style.css">
   <script src="app.js" defer></script>
 </head>
 <body>
-  <header class="hero">
-    <div><p class="eyebrow">GATHER / EVENT SPACE</p><h1>Создавай события.<br><span>Собирай людей.</span></h1><p class="sub">Демо-система управления мероприятиями и регистрациями участников.</p></div>
-    <div class="hero-mark" aria-hidden="true">✳</div>
+  <header class="top">
+    <div><p class="eyebrow">DAYMARK / PERSONAL PLANNER</p><h1>Планы, которым легко следовать.</h1><p class="sub">Организуй день, собери неделю и сохраняй завершённое в архив.</p></div>
+    <div class="date-badge" id="today-label"></div>
   </header>
-  <main class="container">
-    <nav class="tabs" role="tablist" aria-label="Разделы приложения">
-      <button class="tab active" role="tab" aria-selected="true" data-page="events">События <b id="event-count">0</b></button>
-      <button class="tab" role="tab" aria-selected="false" data-page="registration">Регистрация</button>
-      <button class="tab" role="tab" aria-selected="false" data-page="participants">Участники <b id="participant-count">0</b></button>
-    </nav>
-    <section id="content" aria-live="polite"></section>
-    <footer>Лабораторная работа № 7 • Вариант 20 • Данные сохраняются локально в браузере</footer>
+  <main class="layout">
+    <section class="panel">
+      <h2>Новая запись</h2>
+      <form id="task-form">
+        <label for="task-title">Название</label>
+        <input id="task-title" name="title" maxlength="80" required placeholder="Например, подготовить лабораторную">
+        <label for="task-date">Дата</label>
+        <input id="task-date" name="date" type="date" required>
+        <label for="task-category">Категория</label>
+        <select id="task-category" name="category"><option>Учёба</option><option>Работа</option><option>Личное</option><option>Здоровье</option></select>
+        <button class="primary" type="submit">Добавить запись</button>
+        <p id="form-message" class="message" aria-live="polite"></p>
+      </form>
+    </section>
+    <section class="workspace">
+      <nav class="tabs" role="tablist" aria-label="Разделы планировщика">
+        <button class="tab active" role="tab" aria-selected="true" data-page="today">Сегодня <span id="count-today">0</span></button>
+        <button class="tab" role="tab" aria-selected="false" data-page="week">Неделя <span id="count-week">0</span></button>
+        <button class="tab" role="tab" aria-selected="false" data-page="archive">Архив <span id="count-archive">0</span></button>
+      </nav>
+      <div id="content" aria-live="polite"></div>
+    </section>
   </main>
+  <footer>Лабораторная работа № 7 • Вариант 14 • HTML / CSS / JavaScript</footer>
 </body>
 </html>

@@ -1,168 +1,111 @@
-const STORAGE_KEY = "gather-events-v1";
+const STORAGE_KEY = "daymark-planner-v1";
 const content = document.querySelector("#content");
 const tabs = [...document.querySelectorAll("[data-page]")];
-let activePage = "events";
-const seedEvents = [
-  {id:"e1",title:"Frontend Meetup",date:"2026-11-05",time:"18:30",place:"Коворкинг Q",capacity:40,description:"Встреча для тех, кто изучает веб-разработку."},
-  {id:"e2",title:"Game Dev Weekend",date:"2026-11-14",time:"10:00",place:"Tech Hub",capacity:25,description:"Мини-хакатон и обмен опытом по разработке игр."},
-  {id:"e3",title:"Design & Coffee",date:"2026-11-21",time:"15:00",place:"Coffee Lab",capacity:20,description:"Неформальное обсуждение интерфейсов и визуальных идей."}
-];
-let state = loadState();
+const form = document.querySelector("#task-form");
+const titleInput = document.querySelector("#task-title");
+const dateInput = document.querySelector("#task-date");
+const categoryInput = document.querySelector("#task-category");
+const message = document.querySelector("#form-message");
+const today = localDateString(new Date());
+let activePage = "today";
+let tasks = loadTasks();
 
-function loadState() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-    if (saved && Array.isArray(saved.events) && Array.isArray(saved.participants)) return saved;
-  } catch (error) { /* Используем начальные данные при ошибке чтения. */ }
-  return {events:seedEvents,participants:[]};
+function localDateString(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
-function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-  catch (error) { alert("Не удалось сохранить данные. Проверьте настройки хранилища браузера."); }
+function loadTasks() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    return Array.isArray(saved) ? saved.filter(t => t && typeof t.title === "string" && t.date) : [];
+  } catch (error) {
+    return [];
+  }
+}
+function saveTasks() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
+  catch (error) { message.textContent = "Не удалось сохранить данные в браузере."; }
+}
+function startOfWeek(date) {
+  const result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = (result.getDay() + 6) % 7;
+  result.setDate(result.getDate() - day);
+  return result;
+}
+function isThisWeek(dateString) {
+  const date = new Date(`${dateString}T12:00:00`);
+  const start = startOfWeek(new Date());
+  const end = new Date(start); end.setDate(end.getDate() + 7);
+  return date >= start && date < end;
+}
+function filteredTasks() {
+  if (activePage === "today") return tasks.filter(t => t.date === today && !t.done);
+  if (activePage === "week") return tasks.filter(t => isThisWeek(t.date) && !t.done).sort((a,b) => a.date.localeCompare(b.date));
+  return tasks.filter(t => t.done).sort((a,b) => b.date.localeCompare(a.date));
+}
+function makeButton(label, className, action, id) {
+  const button = document.createElement("button");
+  button.type = "button"; button.className = `action ${className}`; button.textContent = label;
+  button.addEventListener("click", () => action(id));
+  return button;
+}
+function render() {
+  const counts = {
+    today: tasks.filter(t => t.date === today && !t.done).length,
+    week: tasks.filter(t => isThisWeek(t.date) && !t.done).length,
+    archive: tasks.filter(t => t.done).length
+  };
+  Object.entries(counts).forEach(([key,value]) => document.querySelector(`#count-${key}`).textContent = value);
+  tabs.forEach(tab => {
+    const active = tab.dataset.page === activePage;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", String(active));
+  });
+  content.replaceChildren();
+  const heading = document.createElement("div"); heading.className = "section-title";
+  const title = document.createElement("h2"); title.textContent = {today:"На сегодня",week:"План на неделю",archive:"Архив выполненного"}[activePage];
+  const note = document.createElement("span"); note.className = "tag"; note.textContent = `${filteredTasks().length} записей`;
+  heading.append(title,note); content.append(heading);
+  const list = document.createElement("div"); list.className = "task-list";
+  const visible = filteredTasks();
+  if (!visible.length) {
+    const empty = document.createElement("div"); empty.className = "empty";
+    empty.textContent = activePage === "archive" ? "Пока нет завершённых записей." : "Здесь пока пусто. Добавь запись через форму слева.";
+    list.append(empty);
+  }
+  visible.forEach(task => {
+    const card = document.createElement("article"); card.className = "task";
+    const main = document.createElement("div"); main.className = "task-main";
+    const name = document.createElement("h3"); name.textContent = task.title;
+    const details = document.createElement("p"); details.textContent = `${formatDate(task.date)} · ${task.category}`;
+    main.append(name,details);
+    const tag = document.createElement("span"); tag.className = "tag"; tag.textContent = task.done ? "Выполнено" : "В планах";
+    const actions = document.createElement("div"); actions.className = "task-actions";
+    if (!task.done) actions.append(makeButton("В архив", "secondary", markDone, task.id));
+    else actions.append(makeButton("Вернуть", "secondary", restoreTask, task.id));
+    actions.append(makeButton("Удалить", "danger", deleteTask, task.id));
+    card.append(main,tag,actions); list.append(card);
+  });
+  content.append(list);
 }
 function formatDate(value) {
   const date = new Date(`${value}T12:00:00`);
-  return new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",year:"numeric"}).format(date);
+  return new Intl.DateTimeFormat("ru-RU", {day:"numeric",month:"short",year:"numeric"}).format(date);
 }
-function el(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-function button(label, className, handler) {
-  const node = el("button",`button ${className || ""}`,label);
-  node.type = "button"; node.addEventListener("click",handler); return node;
-}
-function heading(title, description) {
-  const wrapper = el("div","section-heading");
-  const left = el("div");
-  left.append(el("h2","",title),el("p","muted",description));
-  wrapper.append(left); return wrapper;
-}
-function updateCounters() {
-  document.querySelector("#event-count").textContent = state.events.length;
-  document.querySelector("#participant-count").textContent = state.participants.length;
-}
-function renderEvents() {
-  content.append(heading("Ближайшие события","Выбери мероприятие и зарегистрируйся."));
-  const grid = el("div","event-grid");
-  state.events.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(event => {
-    const card = el("article","event-card");
-    card.append(el("div","date",formatDate(event.date)));
-    card.append(el("h3","",event.title));
-    card.append(el("p","",event.description));
-    card.append(el("div","meta",`${event.time} · ${event.place}`));
-    const registered = state.participants.filter(p=>p.eventId===event.id).length;
-    card.append(el("div","meta",`Участники: ${registered} / ${event.capacity}`));
-    card.append(button("Зарегистрироваться","",()=>{activePage="registration";render(event.id);}));
-    grid.append(card);
-  });
-  if (!state.events.length) grid.append(el("div","empty","Событий пока нет. Добавь первое на вкладке «Регистрация»."));
-  content.append(grid);
-}
-function renderRegistration(prefillId="") {
-  content.append(heading("Управление регистрациями","Добавляй события и записывай участников с проверкой данных."));
-  const layout = el("div","form-layout");
-  const eventPanel = el("section","panel");
-  eventPanel.append(el("h3","","Создать событие"));
-  const eventForm = el("form");
-  const eventFields = [
-    ["Название события","title","text","Например, JavaScript Meetup"],
-    ["Дата","date","date",""],
-    ["Время","time","time",""],
-    ["Место проведения","place","text","Название площадки"],
-    ["Максимум участников","capacity","number","30"],
-    ["Описание","description","text","Коротко о мероприятии"]
-  ];
-  eventFields.forEach(([label,name,type,placeholder])=>{
-    const id=`event-${name}`;
-    eventForm.append(el("label","",label));
-    const input=el("input");input.id=id;input.name=name;input.type=type;input.placeholder=placeholder;
-    if(name==="capacity"){input.min="1";input.max="10000";input.value="30";input.required=true;}
-    if(name==="date"){input.min=new Date().toISOString().slice(0,10);input.required=true;}
-    if(name==="title"||name==="time"||name==="place")input.required=true;
-    if(name==="title"||name==="place"||name==="description")input.maxLength=100;
-    eventForm.append(input);
-  });
-  const eventMessage=el("p","message");eventMessage.setAttribute("aria-live","polite");
-  eventForm.append(button("Создать событие","",()=>{}));
-  eventForm.querySelector("button").type="submit";
-  eventForm.addEventListener("submit",e=>{
-    e.preventDefault();
-    const data=Object.fromEntries(new FormData(eventForm).entries());
-    const capacity=Number(data.capacity);
-    if(!data.title.trim()||!data.date||!data.time||!data.place.trim()||!Number.isInteger(capacity)||capacity<1){
-      eventMessage.textContent="Проверь поля: название, дата, время, место и вместимость обязательны.";
-      eventMessage.className="message error";return;
-    }
-    state.events.push({id:makeId(),title:data.title.trim(),date:data.date,time:data.time,place:data.place.trim(),capacity,description:data.description.trim()||"Описание не добавлено."});
-    saveState();render(" ");
-  });
-  eventPanel.append(eventForm,eventMessage);
-  const participantPanel=el("section","panel");
-  participantPanel.append(el("h3","","Регистрация участника"));
-  const participantForm=el("form");
-  const nameLabel=el("label","","Имя участника");nameLabel.htmlFor="participant-name";
-  const nameInput=el("input");nameInput.id="participant-name";nameInput.name="name";nameInput.required=true;nameInput.maxLength=80;nameInput.placeholder="Имя и фамилия";
-  const emailLabel=el("label","","Электронная почта");emailLabel.htmlFor="participant-email";
-  const emailInput=el("input");emailInput.id="participant-email";emailInput.name="email";emailInput.type="email";emailInput.required=true;emailInput.maxLength=120;emailInput.placeholder="name@example.com";
-  const selectLabel=el("label","","Мероприятие");selectLabel.htmlFor="participant-event";
-  const select=el("select");select.id="participant-event";select.name="eventId";select.required=true;
-  state.events.forEach(event=>{const option=el("option","",`${event.title} — ${formatDate(event.date)}`);option.value=event.id;select.append(option);});
-  if(prefillId && state.events.some(e=>e.id===prefillId))select.value=prefillId;
-  const participantMessage=el("p","message");participantMessage.setAttribute("aria-live","polite");
-  participantForm.append(nameLabel,nameInput,emailLabel,emailInput,selectLabel,select);
-  const submit=button("Зарегистрировать","",()=>{});submit.type="submit";participantForm.append(submit);
-  participantForm.addEventListener("submit",e=>{
-    e.preventDefault();
-    const name=nameInput.value.trim(),email=emailInput.value.trim(),eventId=select.value;
-    const event=state.events.find(item=>item.id===eventId);
-    if(!name||!email||!event){participantMessage.textContent="Заполни все поля корректно.";participantMessage.className="message error";return;}
-    if(state.participants.some(p=>p.eventId===eventId&&p.email.toLowerCase()===email.toLowerCase())){
-      participantMessage.textContent="Этот адрес уже зарегистрирован на выбранное событие.";participantMessage.className="message error";return;
-    }
-    const count=state.participants.filter(p=>p.eventId===eventId).length;
-    if(count>=event.capacity){participantMessage.textContent="Свободных мест больше нет.";participantMessage.className="message error";return;}
-    state.participants.push({id:makeId(),name,email,eventId,registeredAt:new Date().toISOString()});
-    saveState();activePage="participants";render();
-  });
-  participantPanel.append(participantForm,participantMessage);
-  layout.append(eventPanel,participantPanel);content.append(layout);
-  if(!state.events.length){select.disabled=true;participantForm.querySelector("button").disabled=true;}
-}
-function renderParticipants() {
-  content.append(heading("Список участников","Зарегистрированные участники и выбранные ими события."));
-  const search=el("input","search");search.type="search";search.placeholder="Поиск по имени, email или событию";search.setAttribute("aria-label","Поиск участников");
-  content.append(search);
-  const list=el("div","participant-list");
-  content.append(list);
-  function paint(query="") {
-    list.replaceChildren();
-    const normalized=query.trim().toLowerCase();
-    const filtered=state.participants.filter(p=>{
-      const event=state.events.find(e=>e.id===p.eventId);
-      return `${p.name} ${p.email} ${event?.title||""}`.toLowerCase().includes(normalized);
-    });
-    if(!filtered.length){list.append(el("div","empty",normalized?"Ничего не найдено.":"Пока нет зарегистрированных участников."));return;}
-    filtered.forEach(p=>{
-      const event=state.events.find(e=>e.id===p.eventId);
-      const row=el("article","participant");
-      const info=el("div");info.append(el("strong","",p.name),el("small","",`${p.email} · ${event?event.title:"Событие удалено"}`));
-      row.append(info,button("Удалить","light",()=>{state.participants=state.participants.filter(x=>x.id!==p.id);saveState();render();}));
-      list.append(row);
-    });
-  }
-  search.addEventListener("input",()=>paint(search.value));paint();
-}
-function makeId(){return crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`;}
-function render(prefillId="") {
-  updateCounters();
-  tabs.forEach(tab=>{const active=tab.dataset.page===activePage;tab.classList.toggle("active",active);tab.setAttribute("aria-selected",String(active));});
-  content.replaceChildren();
-  if(activePage==="events")renderEvents();
-  else if(activePage==="registration")renderRegistration(prefillId);
-  else renderParticipants();
-}
-tabs.forEach(tab=>tab.addEventListener("click",()=>{activePage=tab.dataset.page;render();}));
+function markDone(id) { tasks = tasks.map(t => t.id === id ? {...t,done:true} : t); saveTasks(); render(); }
+function restoreTask(id) { tasks = tasks.map(t => t.id === id ? {...t,done:false} : t); saveTasks(); render(); }
+function deleteTask(id) { tasks = tasks.filter(t => t.id !== id); saveTasks(); render(); }
+tabs.forEach(tab => tab.addEventListener("click", () => { activePage = tab.dataset.page; render(); }));
+form.addEventListener("submit", event => {
+  event.preventDefault();
+  const title = titleInput.value.trim();
+  const date = dateInput.value;
+  if (!title || !date) { message.textContent = "Заполни название и дату."; return; }
+  tasks.push({id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())), title, date, category: categoryInput.value, done:false});
+  saveTasks(); form.reset(); dateInput.value = today; message.textContent = "Запись добавлена."; activePage = date === today ? "today" : "week"; render();
+});
+document.querySelector("#today-label").textContent = new Intl.DateTimeFormat("ru-RU",{weekday:"long",day:"numeric",month:"long"}).format(new Date());
+dateInput.value = today; dateInput.min = "2020-01-01";
 render();
