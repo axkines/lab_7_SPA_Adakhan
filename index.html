@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SPA управления мероприятиями — лабораторная работа №7, вариант 20">
+  <title>Gather — мероприятия</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="hero">
+    <div><p class="eyebrow">GATHER / EVENT SPACE</p><h1>Создавай события.<br><span>Собирай людей.</span></h1><p class="sub">Демо-система управления мероприятиями и регистрациями участников.</p></div>
+    <div class="hero-mark" aria-hidden="true">✳</div>
+  </header>
+  <main class="container">
+    <nav class="tabs" role="tablist" aria-label="Разделы приложения">
+      <button class="tab active" role="tab" aria-selected="true" data-page="events">События <b id="event-count">0</b></button>
+      <button class="tab" role="tab" aria-selected="false" data-page="registration">Регистрация</button>
+      <button class="tab" role="tab" aria-selected="false" data-page="participants">Участники <b id="participant-count">0</b></button>
+    </nav>
+    <section id="content" aria-live="polite"></section>
+    <footer>Лабораторная работа № 7 • Вариант 20 • Данные сохраняются локально в браузере</footer>
+  </main>
+</body>
+</html>
